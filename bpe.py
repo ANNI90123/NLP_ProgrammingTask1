@@ -42,8 +42,9 @@ class BPETokenizer:
         """
         # TODO: Implement the method to lowercase and split the input by whitespace
         # (optional) You can also use one or more heuristics introduced in the lecture (NLP:III-14)
-        pass
-    
+        text = text.lower()
+        token_list = text.split()
+        return token_list
 
     def preprocess(self, texts: List[str]) -> List[List[str]]:
         """
@@ -54,14 +55,15 @@ class BPETokenizer:
             List of lists, where each inner list contains character-level tokens for each word
         """                
         preprocessed_texts = []
-        
         for text in texts:
-            # Use custom tokenizer to tokenize the text into strings
             pre_tokenized_text = self.pre_tokenize(text)
+            tokenized_texts = []
+            for token in pre_tokenized_text:
+                tokenized_texts.append(list(token))
+            preprocessed_texts.append(tokenized_texts)
             # TODO: implement the _split_into_characters method
             # For each word in the pre_tokenized text, split it into characters
             # and add it to the tokenized_texts list
-            pass
         return preprocessed_texts
 
 
@@ -74,6 +76,11 @@ class BPETokenizer:
             Counter of subword pair frequencies
         """
         pairs = Counter()
+        for tokenized_texts in preprocessed_texts:
+            for token in tokenized_texts:
+                for i in range(len(token) - 1):
+                    subword_pair = (token[i], token[i + 1])
+                    pairs[subword_pair] += 1
         # TODO: Count the frequency of each subword pair in the texts
         return pairs
 
@@ -81,7 +88,7 @@ class BPETokenizer:
     def _merge_pair(self, preprocessed_texts: List[List[List[str]]], pair: Tuple[str, str]) -> List[List[List[str]]]:
         """
         Merge all occurrences of a pair in the preprocessed texts.
-        
+
         Args:
             preprocessed_texts: List of lists of tokenized strings
             pair: Tuple of strings (substrings) to merge
@@ -89,6 +96,18 @@ class BPETokenizer:
         Returns:
             Updated preprocessed texts with pairs merged
         """
+        new_list = []
+        pairs = Counter()
+        for tokenized_texts in preprocessed_texts:
+            for token in tokenized_texts:
+                for i in range(len(token) - 1):
+                    subword_pair = (token[i], token[i + 1])
+                    if subword_pair == subword_pair:
+                        new_list.append(''.join(subword_pair))
+                    else:
+                        new_list.append(token[i])
+            tokenized_texts = new_list
+
         # TODO: Implement the _merge_pair method
         pass
 
@@ -120,7 +139,26 @@ class BPETokenizer:
         self.merges = []
 
         # TODO: Implement the BPE training loop
-        
+        merges = 0
+
+        pair = self._get_stats(preprocessed_texts)
+        while pair is not None:
+            pair,_ = pair.most_common(1)[0]
+
+            preprocessed_texts = self._merge_pair(preprocessed_texts, pair)
+
+            vocab_set = set([char for text in preprocessed_texts for word in text for char in word])
+            for idx, token in enumerate(sorted(vocab_set)):
+                self.vocab[token] = idx
+
+            merges += 1
+
+            if (merges >= max_merges) or (len(self.vocab) >= max_vocab_size):
+                pair = None
+            else:
+                pair = self._get_stats(preprocessed_texts)
+
+
             # derive next merge operation
 
             # apply merge operation to the preprocessed texts
@@ -128,7 +166,7 @@ class BPETokenizer:
             # update the vocabulary and merge rules
 
             # check for stopping conditions (max_merges or max_vocab_size)
-        pass
+        return
 
 
     ######################################## BPE tokenization #############################################
@@ -143,7 +181,20 @@ class BPETokenizer:
         """
         # Lecture slides: NLP:III-38--42
         # TODO: Implement the _tokenize_string method
-        pass
+        words = self.pre_tokenize(string) # Beispiel: "the quick brown" -> ['the', 'quick', 'brown']
+        preprocessed_text = self.preprocess(words) # Ergebnis: [['t', 'h', 'e'], ['q', 'u', 'i', 'c', 'k']]
+
+        tokenized_text2 = [token[:] for token in preprocessed_text]
+
+        for word in preprocessed_text:
+            for merge in self.merges:
+                for  i in range(len(word)-1): # durch chars iterieren.
+                    pair = (word[i], word[i + 1])
+                    if pair == merge:
+                        word[i:i + 2] = [self._merge_pair([word[i], word[i + 1]], pair)]
+
+        return [''.join(token) for token in tokenized_text2]
+
 
 
     def tokenize(self, texts: List[str]) -> List[List[List[str]]]:
