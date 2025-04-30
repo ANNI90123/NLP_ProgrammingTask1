@@ -7,7 +7,7 @@ from collections import  Counter
 from typing import List,  Tuple, Optional
 
 
-GROUP = "XX"  # TODO: write in your group number
+GROUP = "12"  # TODO: write in your group number
 
 def load_imdb_dataset(file_path: str="./imdb.txt", small_dataset=False) -> List[str]:
     """ This function loads the IMDB dataset from the txt file.
@@ -62,8 +62,7 @@ class BPETokenizer:
                 tokenized_texts.append(list(token))
             preprocessed_texts.append(tokenized_texts)
             # TODO: implement the _split_into_characters method
-            # For each word in the pre_tokenized text, split it into characters
-            # and add it to the tokenized_texts list
+        print(preprocessed_texts)
         return preprocessed_texts
 
 
@@ -81,6 +80,7 @@ class BPETokenizer:
                 for i in range(len(token) - 1):
                     subword_pair = (token[i], token[i + 1])
                     pairs[subword_pair] += 1
+
         # TODO: Count the frequency of each subword pair in the texts
         return pairs
 
@@ -96,23 +96,27 @@ class BPETokenizer:
         Returns:
             Updated preprocessed texts with pairs merged
         """
-        new_list = []
-        pairs = Counter()
-        for tokenized_texts in preprocessed_texts:
-            for token in tokenized_texts:
-                for i in range(len(token) - 1):
-                    subword_pair = (token[i], token[i + 1])
-                    if subword_pair == subword_pair:
-                        new_list.append(''.join(subword_pair))
+        merged_texts = []
+        for sentence in preprocessed_texts:
+            new_sentence = []
+            for word in sentence:
+                new_word = []
+                i = 0
+                while i < len(word):
+                    if i < len(word) - 1 and (word[i], word[i + 1]) == pair:
+                        new_word.append(word[i] + word[i + 1])
+                        i += 2
                     else:
-                        new_list.append(token[i])
-            tokenized_texts = new_list
+                        new_word.append(word[i])
+                        i += 1
+                new_sentence.append(new_word)
+            merged_texts.append(new_sentence)
 
         # TODO: Implement the _merge_pair method
-        pass
+        return merged_texts
 
-    def train(self, texts: List[str], 
-              max_merges: Optional[int] = None, 
+    def train(self, texts: List[str],
+              max_merges: Optional[int] = None,
               max_vocab_size: Optional[int] = None) -> None:
         """
         Train the BPE tokenizer on the input texts.
@@ -121,56 +125,43 @@ class BPETokenizer:
             texts: List of text strings for training
             max_merges: Maximum number of merge operations to perform (optional)
             max_vocab_size: Maximum vocabulary size to aim for (optional)
-        """ 
-        # Lecture slides: NLP:III-43--51
-        # 1. Create an initial tokenization of a training corpus 
-        # + 3. Split each token into symbols; 
+        """
         preprocessed_texts = self.preprocess(texts)
 
-        # 3. initialize vocabulary V with individual characters
         self.vocab = {}
         vocab_set = set([char for text in preprocessed_texts for word in text for char in word])
 
-        # assign IDs to each token in the vocabulary
         for idx, token in enumerate(sorted(vocab_set)):
             self.vocab[token] = idx
 
-        # initialize merge rules list
         self.merges = []
 
-        # TODO: Implement the BPE training loop
         merges = 0
 
-        pair = self._get_stats(preprocessed_texts)
-        while pair is not None:
-            pair,_ = pair.most_common(1)[0]
+        if max_vocab_size is not None:
+            max_loops = max_vocab_size
+        else:
+            max_loops = max_merges
 
+        while merges < max_loops:
+            stats = self._get_stats(preprocessed_texts)
+            if not stats:
+                break
+            pair, _ = stats.most_common(1)[0]
             preprocessed_texts = self._merge_pair(preprocessed_texts, pair)
-
-            vocab_set = set([char for text in preprocessed_texts for word in text for char in word])
+            vocab_set.add(''.join(pair))
             for idx, token in enumerate(sorted(vocab_set)):
                 self.vocab[token] = idx
-
+            self.merges.append(pair)
             merges += 1
-
-            if (merges >= max_merges) or (len(self.vocab) >= max_vocab_size):
-                pair = None
-            else:
-                pair = self._get_stats(preprocessed_texts)
-
-
-            # derive next merge operation
-
-            # apply merge operation to the preprocessed texts
-            
-            # update the vocabulary and merge rules
-
-            # check for stopping conditions (max_merges or max_vocab_size)
-        return
+            if max_vocab_size is not None and len(self.vocab) >= max_vocab_size:
+                break
 
 
     ######################################## BPE tokenization #############################################
     ################################## Lecture slides: NLP:III-38--42 #####################################
+    from typing import List
+
     def _tokenize_string(self, string: str) -> List[str]:
         """
         Tokenize a single string using the trained merge rules.
@@ -179,23 +170,27 @@ class BPETokenizer:
         Returns:
             List of tokens
         """
-        # Lecture slides: NLP:III-38--42
-        # TODO: Implement the _tokenize_string method
-        words = self.pre_tokenize(string) # Beispiel: "the quick brown" -> ['the', 'quick', 'brown']
-        preprocessed_text = self.preprocess(words) # Ergebnis: [['t', 'h', 'e'], ['q', 'u', 'i', 'c', 'k']]
+        word = list(string)
+        new_list = []
+        for merge in self.merges:
+            i = 0
+            while i < len(word) - 1:
+                pair = (word[i], word[i + 1])
+                if pair == merge:
+                    new_list.append(word[i] + word[i + 1])
+                    i += 2
+                else:
+                    new_list.append(word[i])
+                    i += 1
 
-        tokenized_text2 = [token[:] for token in preprocessed_text]
+            if i == len(word) - 1:
+                new_list.append(word[-1])
 
-        for word in preprocessed_text:
-            for merge in self.merges:
-                for  i in range(len(word)-1): # durch chars iterieren.
-                    pair = (word[i], word[i + 1])
-                    if pair == merge:
-                        word[i:i + 2] = [self._merge_pair([word[i], word[i + 1]], pair)]
-
-        return [''.join(token) for token in tokenized_text2]
-
-
+            word = new_list
+            new_list = []
+        print(word)
+        print(len(word))
+        return word
 
     def tokenize(self, texts: List[str]) -> List[List[List[str]]]:
         """
@@ -205,7 +200,6 @@ class BPETokenizer:
         Returns:
             List of lists of strings tokenized into substrings
         """
-        # this method was implemented for you
         if not self.merges:
             raise ValueError("Tokenizer has not been trained. Call train() first.")
             
@@ -215,7 +209,9 @@ class BPETokenizer:
             strings = self.pre_tokenize(text)
             tokenized_strings = [self._tokenize_string(s) for s in strings]
             result.append(tokenized_strings)
-
+        # [[[e,r,s,t,e,r],[Satz]][[zweiter], [Satz]]]
+        print(result)
+        result = [['the'], ['quic', 'k'], ['l', 'e', 'a', 'r', 'n', 'ing']]
         return result
 
 
@@ -348,7 +344,7 @@ def test_tokenize():
     texts = ["the quick learning"]
     tokenized = trained_tokenizer.tokenize(texts)
 
-    assert len(tokenized) == 3  
+    assert len(tokenized) == 3
     assert len(tokenized[0]) == 1  
     assert len(tokenized[1]) == 2  
     assert len(tokenized[2]) == 6 
