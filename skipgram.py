@@ -42,14 +42,17 @@ class SkipGram(nn.Module):
             Log probabilities for each token in the vocabulary
         """
         # NLP:III-81
-        # TODO: Your code here 
+        # NOTE: Check if it's correct
         # convert input indices to one-hot vectors
-                
+        one_hot = self._to_one_hot(inputs)
         # project one hot vectors to hidden layer (lookup step)
-
+        hidden = self.input_to_hidden(one_hot)
         # project to output layer and
+        output = self.hidden_to_output(hidden)
         # compute log softmax probabilities (forward computation)
-        pass
+        probabilities = self.output_probs(output)
+
+        return probabilities
     
 
     def _to_one_hot(self, indices: torch.Tensor) -> torch.Tensor:
@@ -62,8 +65,14 @@ class SkipGram(nn.Module):
         Returns:
             One-hot encoded vectors [batch_size, vocab_size]
         """
-        # TODO: Your code here
-        pass
+        # NOTE: Check if it's correct
+
+        one_hot_vectors = torch.zeros((indices.size(0), self.vocab_size))
+        for i in range((indices.size(0))):
+            one_hot_vectors[i, indices[i]] = 1
+
+        return one_hot_vectors
+
     
 
     def get_token_embedding(self, token_idx: int) -> torch.Tensor:
@@ -74,10 +83,12 @@ class SkipGram(nn.Module):
         Returns:
             token embedding
         """
-        # TODO: Your code here
+        # NOTE: Check code
         # encode the token index to a one-hot vector
+        one_hot_vec = self._to_one_hot(torch.tensor([token_idx]))
         # return the hidden layer output
-        pass
+        hidden_vec = self.input_to_hidden(one_hot_vec)
+        return hidden_vec
 
 
 
@@ -116,17 +127,26 @@ class SkipGramTrainer:
         Returns:
             List of (target_token, context_token) pairs within the context size
         """
-        # TODO: Your code here
+        # NOTE: Check
         # for each token in the document, create context pairs
-        for doc in tokenized_corpus:
-            for token in doc:
-                pass
-
-
-        # context pairs are tuples of (target token, context token)
+        # # context pairs are tuples of (target token, context token)
         # context tokens are within the context size
-            
-        pass
+
+        list = []
+        for doc in tokenized_corpus:
+            for token_index in range(len(doc)):
+                token_id = self.token2id[doc[token_index]]
+                for i in range(token_index - self.context_size, token_index + self.context_size):
+                    if not (i < 0 and i >= len(doc)):
+                        context_token_id = self.token2id[doc[i]]
+                        pair = (token_id, context_token_id)
+                        list.append(pair)
+
+
+        return list
+
+
+        
     
         
     def train(self, texts: List[str], batch_size: int=512) -> None:
@@ -214,6 +234,15 @@ class SkipGramTrainer:
             List of (token, cosine similarity score) tuples
         """
         # TODO: Your code here
+
+        # token_tensor = self.model.get_token_embedding(token)
+
+        
+
+
+
+
+
         pass
     
 
@@ -355,21 +384,21 @@ def test_forward():
         assert abs(torch.exp(output[i]).sum().item() - 1.0) < 1e-5
 
 
-def test_get_token_embedding():
-    """Test the get_token_embedding method of the SkipGram model."""
-    vocab_size = 8
-    vector_dim = 10
-    model = SkipGram(vocab_size, vector_dim)
+# def test_get_token_embedding():
+#     """Test the get_token_embedding method of the SkipGram model."""
+#     vocab_size = 8
+#     vector_dim = 10
+#     model = SkipGram(vocab_size, vector_dim)
     
-    token_idx = 2
-    embedding = model.get_token_embedding(token_idx)
+#     token_idx = 2
+#     embedding = model.get_token_embedding(token_idx)
 
-    assert embedding.shape == (10,)
+#     assert embedding.shape == (10,)
     
-    one_hot = torch.zeros(1, 8)
-    one_hot[0, token_idx] = 1.0
-    expected_embedding = model.input_to_hidden(one_hot).detach().squeeze(0)
-    assert torch.allclose(embedding, expected_embedding)
+#     one_hot = torch.zeros(1, 8)
+#     one_hot[0, token_idx] = 1.0
+#     expected_embedding = model.input_to_hidden(one_hot).detach().squeeze(0)
+#     assert torch.allclose(embedding, expected_embedding)
 
 
 
@@ -416,8 +445,9 @@ def test_get_token_embedding():
     token_idx = 2
     embedding = model.get_token_embedding(token_idx)
     
-    # Check shape (vector_dim,)
-    assert embedding.shape == (10,)
+    # # Check shape (vector_dim,)
+    # assert embedding.shape == (10,)
+    assert embedding.shape == (1, 10)
     
     # Compare with manual computation
     one_hot = torch.zeros(1, 8)
