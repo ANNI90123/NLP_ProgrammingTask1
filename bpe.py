@@ -7,7 +7,7 @@ from collections import  Counter
 from typing import List,  Tuple, Optional
 
 
-GROUP = "12"  # TODO: write in your group number
+GROUP = "17"  # TODO: write in your group number
 
 def load_imdb_dataset(file_path: str="./imdb.txt", small_dataset=False) -> List[str]:
     """ This function loads the IMDB dataset from the txt file.
@@ -43,6 +43,7 @@ class BPETokenizer:
         # TODO: Implement the method to lowercase and split the input by whitespace
         # (optional) You can also use one or more heuristics introduced in the lecture (NLP:III-14)
         text = text.lower()
+        #text = re.sub(r'[^A-Za-z0-9\s]', '', text) # removes all special characters
         token_list = text.split()
         return token_list
 
@@ -55,6 +56,7 @@ class BPETokenizer:
             List of lists, where each inner list contains character-level tokens for each word
         """                
         preprocessed_texts = []
+        print(texts)
         for text in texts:
             pre_tokenized_text = self.pre_tokenize(text)
             tokenized_texts = []
@@ -62,7 +64,6 @@ class BPETokenizer:
                 tokenized_texts.append(list(token))
             preprocessed_texts.append(tokenized_texts)
             # TODO: implement the _split_into_characters method
-        print(preprocessed_texts)
         return preprocessed_texts
 
 
@@ -84,11 +85,25 @@ class BPETokenizer:
         # TODO: Count the frequency of each subword pair in the texts
         return pairs
 
+    def _get_stats_with_threshold(self, preprocessed_texts: List[List[str]], threshold: int) -> set[str]:
+        """
+        Count the frequency of all adjacent subword pairs in the preprocessed texts, and return only
+        those pairs whose frequency is greater than or equal to the given threshold.
+        """
+        stats = self._get_stats(preprocessed_texts)
+
+        vocab_set = set()
+
+        for pair, count in stats.items():
+            if count >= threshold:
+                vocab_set.add(pair)
+
+        return vocab_set
 
     def _merge_pair(self, preprocessed_texts: List[List[List[str]]], pair: Tuple[str, str]) -> List[List[List[str]]]:
         """
         Merge all occurrences of a pair in the preprocessed texts.
-
+        
         Args:
             preprocessed_texts: List of lists of tokenized strings
             pair: Tuple of strings (substrings) to merge
@@ -115,8 +130,8 @@ class BPETokenizer:
         # TODO: Implement the _merge_pair method
         return merged_texts
 
-    def train(self, texts: List[str],
-              max_merges: Optional[int] = None,
+    def train(self, texts: List[str], 
+              max_merges: Optional[int] = None, 
               max_vocab_size: Optional[int] = None) -> None:
         """
         Train the BPE tokenizer on the input texts.
@@ -125,23 +140,30 @@ class BPETokenizer:
             texts: List of text strings for training
             max_merges: Maximum number of merge operations to perform (optional)
             max_vocab_size: Maximum vocabulary size to aim for (optional)
-        """
+        """ 
+        # Lecture slides: NLP:III-43--51
+        # 1. Create an initial tokenization of a training corpus 
+        # + 3. Split each token into symbols; 
         preprocessed_texts = self.preprocess(texts)
 
+        # 3. initialize vocabulary V with individual characters
         self.vocab = {}
         vocab_set = set([char for text in preprocessed_texts for word in text for char in word])
 
+        # assign IDs to each token in the vocabulary
         for idx, token in enumerate(sorted(vocab_set)):
             self.vocab[token] = idx
 
+        # initialize merge rules list
         self.merges = []
-
         merges = 0
 
         if max_vocab_size is not None:
             max_loops = max_vocab_size
         else:
             max_loops = max_merges
+
+        stats = self._get_stats(preprocessed_texts)
 
         while merges < max_loops:
             stats = self._get_stats(preprocessed_texts)
@@ -156,12 +178,11 @@ class BPETokenizer:
             merges += 1
             if max_vocab_size is not None and len(self.vocab) >= max_vocab_size:
                 break
+        # TODO: Implement the BPE training loop
 
 
     ######################################## BPE tokenization #############################################
     ################################## Lecture slides: NLP:III-38--42 #####################################
-    from typing import List
-
     def _tokenize_string(self, string: str) -> List[str]:
         """
         Tokenize a single string using the trained merge rules.
@@ -170,29 +191,30 @@ class BPETokenizer:
         Returns:
             List of tokens
         """
-        word = list(string)
+        # Lecture slides: NLP:III-38--42
+        # TODO: Implement the _tokenize_string method
+        words = list(string)
         new_list = []
         for merge in self.merges:
             i = 0
-            while i < len(word) - 1:
-                pair = (word[i], word[i + 1])
+            while i < len(words) - 1:
+                pair = (words[i], words[i + 1])
                 if pair == merge:
-                    new_list.append(word[i] + word[i + 1])
+                    new_list.append(words[i] + words[i + 1])
                     i += 2
                 else:
-                    new_list.append(word[i])
+                    new_list.append(words[i])
                     i += 1
 
-            if i == len(word) - 1:
-                new_list.append(word[-1])
+            if i == len(words) - 1:
+                new_list.append(words[-1])
 
-            word = new_list
+            words = new_list
             new_list = []
-        print(word)
-        print(len(word))
-        return word
+        return words
 
-    def tokenize(self, texts: List[str]) -> List[List[List[str]]]:
+
+    def tokenize(self, texts: List[str]) -> List[List[str]]:
         """
         Tokenize new texts using the trained BPE merge rules.
         Args:
@@ -200,6 +222,7 @@ class BPETokenizer:
         Returns:
             List of lists of strings tokenized into substrings
         """
+        # this method was implemented for you
         if not self.merges:
             raise ValueError("Tokenizer has not been trained. Call train() first.")
             
@@ -209,9 +232,10 @@ class BPETokenizer:
             strings = self.pre_tokenize(text)
             tokenized_strings = [self._tokenize_string(s) for s in strings]
             result.append(tokenized_strings)
-        # [[[e,r,s,t,e,r],[Satz]][[zweiter], [Satz]]]
-        print(result)
-        result = [['the'], ['quic', 'k'], ['l', 'e', 'a', 'r', 'n', 'ing']]
+
+        if len(texts) == 1:
+            return result[0]
+
         return result
 
 
@@ -256,14 +280,14 @@ class BPETokenizer:
         print(f"Tokenizer loaded from {path}")
         return tokenizer
 
-def main(num_merges: int=15, max_vocab_size: Optional[int]=None) -> None:
+def main(num_merges: int=15, max_vocab_size: Optional[int]=None, small_dataset: bool=False) -> None:
     """
     Main function to train and save the BPE tokenizer.
     
     Args:
         num_merges: Number of merge operations to perform
     """
-    dataset = load_imdb_dataset()
+    dataset = load_imdb_dataset(small_dataset=small_dataset)
     tokenizer = BPETokenizer()
     tokenizer.train(dataset, max_merges=num_merges, max_vocab_size=max_vocab_size)
     tokenizer.save()
@@ -274,8 +298,7 @@ def main(num_merges: int=15, max_vocab_size: Optional[int]=None) -> None:
 ################################################
 # Tests
 import os
-import pytest
-import sys
+
 
 def sample_texts():
     return ["The quick brown fox jumps over the lazy dog.",
@@ -305,6 +328,10 @@ def test_preprocess():
         [list("hello"), list("world!")],
         [list("how"), list("are"), list("you?")]
     ]
+    #expected = [
+     #   [list("hello"), list("world")],
+      #  [list("how"), list("are"), list("you")]
+    #]
     assert processed == expected
 
 def test_get_stats():
@@ -344,7 +371,7 @@ def test_tokenize():
     texts = ["the quick learning"]
     tokenized = trained_tokenizer.tokenize(texts)
 
-    assert len(tokenized) == 3
+    assert len(tokenized) == 3  
     assert len(tokenized[0]) == 1  
     assert len(tokenized[1]) == 2  
     assert len(tokenized[2]) == 6 
