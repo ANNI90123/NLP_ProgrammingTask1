@@ -222,7 +222,7 @@ class SkipGramTrainer:
 
             
 
-    def find_similar_tokens(self, token, top_n=10):
+    def find_similar_tokens(self, token, top_n=10): # soll so sein wie es hier steht
         """
         Find the most similar tokens to the given token using cosine similarity.
         
@@ -233,17 +233,29 @@ class SkipGramTrainer:
         Returns:
             List of (token, cosine similarity score) tuples
         """
-        # TODO: Your code here
+        # NOTE: Check
 
-        # token_tensor = self.model.get_token_embedding(token)
+        token_embedding = self.model.get_token_embedding(token)
 
+        list = []
+
+        for i in range(self.vocab_size):
+            token_i_embedding = self.model.get_token_embedding(i)
+            sim = self.cosine_similarity(token_embedding, token_i_embedding)
+
+            tupel = (token_i_embedding, sim)
+            list.append(tupel)
+
+        def sort_criteria(i):
+            return (i[1])
         
+        list.sort(reverse=True, key=sort_criteria)       
+        
+        sim_tokens = []
+        for i in range(1, top_n+1):
+            sim_tokens.append(list[i])
 
-
-
-
-
-        pass
+        return sim_tokens
     
 
     def save(self, path=f'./output/skipgram_group_{GROUP}.pt'):
