@@ -66,7 +66,7 @@ class SkipGram(nn.Module):
             One-hot encoded vectors [batch_size, vocab_size]
         """
         # NOTE: Check if it's correct
-
+        # print("in one hot")
         one_hot_vectors = torch.zeros((indices.size(0), self.vocab_size))
         for i in range((indices.size(0))):
             one_hot_vectors[i, indices[i]] = 1
@@ -86,8 +86,10 @@ class SkipGram(nn.Module):
         # NOTE: Check code
         # encode the token index to a one-hot vector
         one_hot_vec = self._to_one_hot(torch.tensor([token_idx]))
+        # print("one hot vec: " + str(one_hot_vec))
         # return the hidden layer output
         hidden_vec = self.input_to_hidden(one_hot_vec)
+        # print("hidden vec: " + str(hidden_vec))
         return hidden_vec
 
 
@@ -111,7 +113,7 @@ class SkipGramTrainer:
         self.learning_rate = learning_rate
         self.epochs = epochs
 
-        self.tokenizer =  BPETokenizer().load(path=f"./output/bpe_group_{GROUP}.json")
+        self.tokenizer =  BPETokenizer().load(path=f"./output/bpe_trained_group_{GROUP}.json")
         self.token2id = self.tokenizer.vocab if self.tokenizer else None
         self.id2token = {v: k for k, v in self.token2id.items()} if self.token2id else None
         self.vocab_size = len(self.token2id) if self.token2id else 0
@@ -134,13 +136,17 @@ class SkipGramTrainer:
 
         list = []
         for doc in tokenized_corpus:
-            for token_index in range(len(doc)):
-                token_id = self.token2id[doc[token_index]]
-                for i in range(token_index - self.context_size, token_index + self.context_size):
-                    if not (i < 0 and i >= len(doc)):
-                        context_token_id = self.token2id[doc[i]]
-                        pair = (token_id, context_token_id)
-                        list.append(pair)
+            for token_list in doc:
+                # print(token_list)
+                for token_index in range(len(token_list)):
+                    # print("token index: " + str(token_index))
+                    token_id = self.token2id[token_list[token_index]]
+                    for i in range(token_index - self.context_size, token_index + self.context_size + 1):
+                        if not (i < 0 or i >= len(token_list) or i==token_index):
+                            # print("i: " + str(i))
+                            context_token_id = self.token2id[token_list[i]]
+                            pair = (token_id, context_token_id)
+                            list.append(pair)
 
 
         return list
@@ -214,11 +220,12 @@ class SkipGramTrainer:
             Cosine similarity between the w1 and w2
         """
         # NOTE: Check if it's correct
-        enum = torch.dot(v1, v2)
+        enu = torch.matmul(v1, v2.T)
         denom = torch.norm(v1) * torch.norm(v2)
 
-        cosine_sim = enum / denom
-        return cosine_sim
+        cosine_sim = enu/denom
+
+        return cosine_sim.item()
 
             
 
@@ -235,22 +242,26 @@ class SkipGramTrainer:
         """
         # NOTE: Check
 
-        token_embedding = self.model.get_token_embedding(token)
+        token_id = self.token2id[token]
+        token_embedding = self.model.get_token_embedding(token_id)
 
         list = []
 
         for i in range(self.vocab_size):
             token_i_embedding = self.model.get_token_embedding(i)
             sim = self.cosine_similarity(token_embedding, token_i_embedding)
-
-            tupel = (token_i_embedding, sim)
+            tupel = (self.id2token[i], sim)
+            # tupel = (i, sim)
             list.append(tupel)
+
 
         def sort_criteria(i):
             return (i[1])
-        
         list.sort(reverse=True, key=sort_criteria)       
-        
+        # print(" ")
+        # for i in list:
+        #     print(i)
+
         sim_tokens = []
         for i in range(1, top_n+1):
             sim_tokens.append(list[i])
@@ -309,7 +320,7 @@ class SkipGramTrainer:
         print(f"Model loaded from {path}")
         return trainer
 
-def main(vector_dim: int, context_size: int, 
+def main(data_proportion: int, vector_dim: int, context_size: int, 
          learning_rate: float, epochs: int, small_dataset: bool = False):
     """
     Main function to load the dataset, train the model, and save it.
@@ -338,6 +349,7 @@ def main(vector_dim: int, context_size: int,
     with open("./output/skipgram_test_group_XX.txt", "w") as f:
         for token in test_samples:
             try:
+                print("in try")
                 similar_tokens = w2v.find_similar_tokens(token, top_n=5)
                 print(f"Most similar tokens to '{token}':")
                 for sim_token, sim_value in similar_tokens:
