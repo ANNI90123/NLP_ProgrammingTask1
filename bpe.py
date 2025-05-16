@@ -149,30 +149,34 @@ class BPETokenizer:
         self.merges = []
         merges = 0
 
-        #stats = self._get_stats(preprocessed_texts)
-        # TODO: Implement the BPE training loop
-        x = True
-        while x:
+        if max_vocab_size is not None:
+            rounds = max_vocab_size
+        elif max_merges is not None:
+            rounds = max_merges
+        else:
+            rounds = 10000
 
-            # derive next merge operation
+        # TODO: Implement the BPE training loop
+        while merges < rounds:
             stats = self._get_stats(preprocessed_texts)
             if not stats:
                 break
+
             pair, _ = stats.most_common(1)[0]
 
-            # apply merge operation to the preprocessed texts
-            preprocessed_texts = self._merge_pair(preprocessed_texts, pair)
+            # Neues Token aus dem Paar bilden und prüfen
+            new_token = ''.join(pair)
+            if new_token not in self.vocab:
+                self.vocab[new_token] = len(self.vocab)
 
-            # update the vocabulary and merge rules
-            vocab_set.add(''.join(pair))
-            for idx, token in enumerate(sorted(vocab_set)):
-                self.vocab[token] = idx
+            # Merge durchführen
+            preprocessed_texts = self._merge_pair(preprocessed_texts, pair)
             self.merges.append(pair)
             merges += 1
 
-            # check for stopping conditions
-            if merges == max_merges or len(vocab_set) == max_vocab_size:
-                x = False
+            # Frühzeitiger Abbruch, falls max_vocab_size erreicht ist
+            if max_vocab_size is not None and len(self.vocab) >= max_vocab_size:
+                break
 
 
 

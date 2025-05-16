@@ -1,0 +1,2 @@
+['thef', 'o', 'x', 'es', 'arer', 'unning', 'quickly', '.']
+['thisis', 'amovie']
