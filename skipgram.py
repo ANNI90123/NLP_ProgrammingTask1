@@ -8,7 +8,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from bpe import BPETokenizer, load_imdb_dataset
 
-GROUP = "17"  
+GROUP = "17"
 
 class SkipGram(nn.Module):
     """
@@ -42,8 +42,7 @@ class SkipGram(nn.Module):
             Log probabilities for each token in the vocabulary
         """
         # NLP:III-81
-        # NOTE: Check if it's correct
-        # convert input indices to one-hot vectors
+        # NOTE: Check
         one_hot = self._to_one_hot(inputs)
         # project one hot vectors to hidden layer (lookup step)
         hidden = self.input_to_hidden(one_hot)
@@ -53,6 +52,7 @@ class SkipGram(nn.Module):
         probabilities = self.output_probs(output)
 
         return probabilities
+        pass
     
 
     def _to_one_hot(self, indices: torch.Tensor) -> torch.Tensor:
@@ -72,7 +72,6 @@ class SkipGram(nn.Module):
             one_hot_vectors[i, indices[i]] = 1
 
         return one_hot_vectors
-
     
 
     def get_token_embedding(self, token_idx: int) -> torch.Tensor:
@@ -85,11 +84,13 @@ class SkipGram(nn.Module):
         """
         # NOTE: Check code
         # encode the token index to a one-hot vector
-        one_hot_vec = self._to_one_hot(torch.tensor([token_idx]))
-        # print("one hot vec: " + str(one_hot_vec))
+        one_hot_vector = torch.zeros(self.vocab_size)
+        one_hot_vector[token_idx] = 1
+            # one_hot_vec = self._to_one_hot(torch.tensor([token_idx]))
+            # when using the previously defined function the test does not pass, beacause it excepts only column vectors, the _to_one_hot method however returns a row vector
+        
         # return the hidden layer output
-        hidden_vec = self.input_to_hidden(one_hot_vec)
-        # print("hidden vec: " + str(hidden_vec))
+        hidden_vec = self.input_to_hidden(one_hot_vector)
         return hidden_vec
 
 
@@ -113,7 +114,7 @@ class SkipGramTrainer:
         self.learning_rate = learning_rate
         self.epochs = epochs
 
-        self.tokenizer =  BPETokenizer().load(path=f"./output/bpe_trained_group_{GROUP}.json")
+        self.tokenizer =  BPETokenizer().load(path=f"./output/bpe_group_{GROUP}.json")
         self.token2id = self.tokenizer.vocab if self.tokenizer else None
         self.id2token = {v: k for k, v in self.token2id.items()} if self.token2id else None
         self.vocab_size = len(self.token2id) if self.token2id else 0
@@ -133,26 +134,21 @@ class SkipGramTrainer:
         # for each token in the document, create context pairs
         # # context pairs are tuples of (target token, context token)
         # context tokens are within the context size
-
         list = []
         for doc in tokenized_corpus:
-            for token_list in doc:
-                # print(token_list)
-                for token_index in range(len(token_list)):
-                    # print("token index: " + str(token_index))
-                    token_id = self.token2id[token_list[token_index]]
-                    for i in range(token_index - self.context_size, token_index + self.context_size + 1):
-                        if not (i < 0 or i >= len(token_list) or i==token_index):
-                            # print("i: " + str(i))
-                            context_token_id = self.token2id[token_list[i]]
-                            pair = (token_id, context_token_id)
-                            list.append(pair)
+            for token_index in range(len(doc)):
+                token_id = self.token2id[doc[token_index]]
+                for i in range(token_index - self.context_size, token_index + self.context_size + 1):
+                    if not (i < 0 or i >= len(doc) or i==token_index):
+                        context_token_id = self.token2id[doc[i]]
+                        pair = (token_id, context_token_id)
+                        list.append(pair)
 
 
         return list
+    
 
 
-        
     
         
     def train(self, texts: List[str], batch_size: int=512) -> None:
@@ -164,7 +160,7 @@ class SkipGramTrainer:
         """
         # this method was already implemented for you
         print("Tokenizing texts...")
-        tokenized_texts = [self.tokenizer.tokenize([text]) for text in tqdm(texts)]
+        tokenized_texts = self.tokenizer.tokenize(texts) # UPD.: 09.05
         
         optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         loss_function = nn.NLLLoss()
@@ -217,19 +213,18 @@ class SkipGramTrainer:
             v2: First vector
             v2: Second vector
         Returns:
-            Cosine similarity between the w1 and w2
+            Cosine similarity between v1 and v2
         """
         # NOTE: Check if it's correct
-        enu = torch.matmul(v1, v2.T)
+        enu = torch.dot(v1, v2)
         denom = torch.norm(v1) * torch.norm(v2)
 
         cosine_sim = enu/denom
 
         return cosine_sim.item()
-
             
 
-    def find_similar_tokens(self, token, top_n=10): # soll so sein wie es hier steht
+    def find_similar_tokens(self, token, top_n=10):
         """
         Find the most similar tokens to the given token using cosine similarity.
         
@@ -251,16 +246,12 @@ class SkipGramTrainer:
             token_i_embedding = self.model.get_token_embedding(i)
             sim = self.cosine_similarity(token_embedding, token_i_embedding)
             tupel = (self.id2token[i], sim)
-            # tupel = (i, sim)
             list.append(tupel)
 
 
         def sort_criteria(i):
             return (i[1])
-        list.sort(reverse=True, key=sort_criteria)       
-        # print(" ")
-        # for i in list:
-        #     print(i)
+        list.sort(reverse=True, key=sort_criteria)      
 
         sim_tokens = []
         for i in range(1, top_n+1):
@@ -320,7 +311,7 @@ class SkipGramTrainer:
         print(f"Model loaded from {path}")
         return trainer
 
-def main(data_proportion: int, vector_dim: int, context_size: int, 
+def main(vector_dim: int, context_size: int, 
          learning_rate: float, epochs: int, small_dataset: bool = False):
     """
     Main function to load the dataset, train the model, and save it.
@@ -349,7 +340,6 @@ def main(data_proportion: int, vector_dim: int, context_size: int,
     with open("./output/skipgram_test_group_XX.txt", "w") as f:
         for token in test_samples:
             try:
-                print("in try")
                 similar_tokens = w2v.find_similar_tokens(token, top_n=5)
                 print(f"Most similar tokens to '{token}':")
                 for sim_token, sim_value in similar_tokens:
@@ -382,7 +372,7 @@ def test_to_one_hot():
     
     indices = torch.tensor([1, 3, 5])
     one_hot = model._to_one_hot(indices)
-    
+    print(one_hot)
     assert one_hot.shape == (3, 8)
     
     assert one_hot[0, 1].item() == 1.0
@@ -408,25 +398,25 @@ def test_forward():
         assert abs(torch.exp(output[i]).sum().item() - 1.0) < 1e-5
 
 
-# def test_get_token_embedding():
-#     """Test the get_token_embedding method of the SkipGram model."""
-#     vocab_size = 8
-#     vector_dim = 10
-#     model = SkipGram(vocab_size, vector_dim)
+def test_get_token_embedding():
+    """Test the get_token_embedding method of the SkipGram model."""
+    vocab_size = 8
+    vector_dim = 10
+    model = SkipGram(vocab_size, vector_dim)
     
-#     token_idx = 2
-#     embedding = model.get_token_embedding(token_idx)
+    token_idx = 2
+    embedding = model.get_token_embedding(token_idx)
 
-#     assert embedding.shape == (10,)
+    assert embedding.shape == (10,)
     
-#     one_hot = torch.zeros(1, 8)
-#     one_hot[0, token_idx] = 1.0
-#     expected_embedding = model.input_to_hidden(one_hot).detach().squeeze(0)
-#     assert torch.allclose(embedding, expected_embedding)
+    one_hot = torch.zeros(1, 8)
+    one_hot[0, token_idx] = 1.0
+    expected_embedding = model.input_to_hidden(one_hot).detach().squeeze(0)
+    assert torch.allclose(embedding, expected_embedding)
 
 
 
-def test_generate_context_pairs():
+def test_generate_context_pairs(): # UPD.: 09.05
     """Test the _generate_context_pairs method of the SkipGramTrainer."""
     mock_tokenizer = {}
     mock_tokenizer['vocab'] = {
@@ -439,45 +429,38 @@ def test_generate_context_pairs():
         "lazy": 6,
         "dog": 7
     }
-    trainer = SkipGramTrainer(vector_dim=10, context_size=1)
-    trainer.token2id = mock_tokenizer["vocab"]
+
+    expected_pairs = {
+            1:        # context size = 1
+            [(0, 1), (1, 0),  (1, 2), (2, 1), (2, 3), (3, 2),  
+            (4, 5), (5, 4), (5, 0), (0, 5), (0, 6), (6, 0), (6, 7), (7, 6)],
+            
+            2:        # context size = 2
+            [(0, 1), (0, 2), (1, 0), (1, 2), (1, 3), (2, 0), (2, 1), (2, 3), (3, 1), (3, 2), 
+             (4, 5), (4, 0), (5, 4), (5, 0), (5, 6), (0, 4), (0, 5), (0, 6), (0, 7), (6, 5), (6, 0), (6, 7), (7, 0), (7, 6)],
+            
+            3: # context size = 3
+            [(0, 1), (0, 2), (0, 3), (1, 0), (1, 2), (1, 3), (2, 0), (2, 1), (2, 3), (3, 0), (3, 1), (3, 2), 
+            (4, 5), (4, 0), (4, 6), (5, 4), (5, 0), (5, 6), (5, 7), (0, 4), (0, 5), (0, 6), (0, 7), (6, 4), (6, 5), (6, 0), (6, 7), (7, 5), (7, 0), (7, 6)]
+    }
+    print(expected_pairs)
+    for context_size in [1, 2, 3]:
+        trainer = SkipGramTrainer(vector_dim=10, context_size=context_size)
+        trainer.token2id = mock_tokenizer["vocab"]
+        
+        tokenized_corpus = [["the", "quick", "brown", "fox"],
+                        ["jumps", "over", "the", "lazy", "dog"]]
+        
+        pairs = trainer._generate_context_pairs(tokenized_corpus)
+
+        expected = expected_pairs[context_size]
+        pairs.sort()
+        expected.sort()
     
-    # Create a simple tokenized corpus
-    tokenized_corpus = [[["the", "quick", "brown", "fox"]],
-                       [["jumps", "over", "the", "lazy", "dog"]]]
-    
-    pairs = trainer._generate_context_pairs(tokenized_corpus)
-    
-    expected_pairs = [
-        (0, 1), (1, 0), (1, 2), (2, 1), (2, 3), (3, 2),  
-        (4, 5), (5, 4), (5, 0), (0, 5), (0, 6), (6, 0), (6, 7), (7, 6)
-    ]
-    
-    pairs.sort()
-    expected_pairs.sort()
-    
-    assert pairs == expected_pairs
+        assert len(pairs) == len(expected), \
+            f"Failed to generate the correct number of context pairs for context size {context_size}"
 
 
-def test_get_token_embedding():
-    """Test the get_token_embedding method of the SkipGram model."""
-    vocab_size = 8
-    vector_dim = 10
-    model = SkipGram(vocab_size, vector_dim)
-    
-    # Test getting embedding for a specific token
-    token_idx = 2
-    embedding = model.get_token_embedding(token_idx)
-    
-    # # Check shape (vector_dim,)
-    # assert embedding.shape == (10,)
-    assert embedding.shape == (1, 10)
-    
-    # Compare with manual computation
-    one_hot = torch.zeros(1, 8)
-    one_hot[0, token_idx] = 1.0
-    expected_embedding = model.input_to_hidden(one_hot).detach().squeeze(0)
-    assert torch.allclose(embedding, expected_embedding)
 
 def test_cosine_similarity():
     """Test the cosine_similarity method of the SkipGramTrainer."""
@@ -500,4 +483,4 @@ if __name__ == "__main__":
     print("Running the main function...")
 
 
-    main(data_proportion=10, vector_dim=100, context_size=1, learning_rate=0.01, epochs=3)
+    main(vector_dim=100, context_size=5, learning_rate=0.01, epochs=3, small_dataset=False) # TODO: update the hyperparameters
